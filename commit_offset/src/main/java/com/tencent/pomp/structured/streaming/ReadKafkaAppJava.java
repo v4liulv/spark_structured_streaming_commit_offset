@@ -1,5 +1,6 @@
 package com.tencent.pomp.structured.streaming;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -15,8 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * 说明：
  */
+@Slf4j
 public class ReadKafkaAppJava {
-    private static final Logger logger = LoggerFactory.getLogger(ReadKafkaAppJava.class);
 
     public static AtomicLong atomic = new AtomicLong(1);
 

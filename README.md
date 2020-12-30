@@ -35,74 +35,81 @@ abstract class StreamingQueryListener {
 
 Java版本
 
-```scala
-package com.tencent.pomp.structured.streaming
+```java
+package com.tencent.pomp.structured.streaming;
 
-import java.util
-import java.util.Properties
+import com.alibaba.fastjson.JSONObject;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.spark.sql.streaming.SourceProgress;
+import org.apache.spark.sql.streaming.StreamingQueryListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import lombok.extern.slf4j.Slf4j
-import org.apache.kafka.clients.consumer.{ConsumerConfig, KafkaConsumer, OffsetAndMetadata}
-import org.apache.kafka.common.TopicPartition
-import org.apache.spark.sql.streaming.StreamingQueryListener
-import org.apache.spark.sql.streaming.StreamingQueryListener._
-import org.slf4j.LoggerFactory
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * @author liulv
  * @since 1.0.0
- *
- *        说明：
  */
-@Slf4j
-class KafkaOffsetCommitter(brokers: String, group: String) extends StreamingQueryListener{
+public class KafkaOffsetCommitterJava extends StreamingQueryListener {
 
-  // Kafka配置
-  val properties= new Properties()
-  properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers)
-  properties.put(ConsumerConfig.GROUP_ID_CONFIG, group)
-  properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer")
-  properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer")
-  val kafkaConsumer = new KafkaConsumer[String, String](properties)
+    /**
+     * logger.
+     */
+    private static final Logger logger = LoggerFactory.getLogger(KafkaOffsetCommitterJava.class);
 
-  def onQueryStarted(event: QueryStartedEvent): Unit = {}
+    /**
+     * 初始化KafkaConsumer.
+     */
+    private static KafkaConsumer kafkaConsumer = null;
 
-  def onQueryTerminated(event: QueryTerminatedEvent): Unit = {}
-
-  // 提交Offset
-  def onQueryProgress(event: QueryProgressEvent): Unit = {
-    val log = LoggerFactory.getLogger(this.getClass)
-
-    // 遍历所有Source
-    event.progress.sources.foreach(source=>{
-
-      val objectMapper = new ObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .configure(DeserializationFeature.USE_LONG_FOR_INTS, true)
-        .registerModule(DefaultScalaModule)
-
-      val endOffset = objectMapper.readValue(source.endOffset,classOf[Map[String, Map[String, Long]]])
-
-      // 遍历Source中的每个Topic
-      for((topic,topicEndOffset) <- endOffset){
-        val topicPartitionsOffset = new util.HashMap[TopicPartition, OffsetAndMetadata]()
-
-        //遍历Topic中的每个Partition
-        for ((partition,offset) <- topicEndOffset) {
-          val topicPartition = new TopicPartition(topic, partition.toInt)
-          val offsetAndMetadata = new OffsetAndMetadata(offset)
-          topicPartitionsOffset.put(topicPartition,offsetAndMetadata)
+    public KafkaOffsetCommitterJava(String brokers, String group){
+        Properties properties= new Properties();
+        {
+            properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
+            properties.put(ConsumerConfig.GROUP_ID_CONFIG, group);
+            properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+            properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+            kafkaConsumer = new KafkaConsumer(properties);
         }
 
-        log.warn(s"提交偏移量... Topic: $topic Group: $group Offset: $topicEndOffset")
-        kafkaConsumer.commitSync(topicPartitionsOffset)
-      }
-    })
-  }
-}
+    }
 
+    @Override
+    public void onQueryStarted(QueryStartedEvent event) {
+        logger.info("Started query with id : {}, name: {},runId : {}", event.id(), event.name(), event.runId().toString());
+    }
+
+    @Override
+    public void onQueryProgress(QueryProgressEvent event) {
+        logger.info("Streaming query made progress: {}", event.progress().prettyJson());
+        for (SourceProgress sourceProgress : event.progress().sources()) {
+            Map<String, Map<String, String>> endOffsetMap = JSONObject.parseObject(sourceProgress.endOffset(), Map.class);
+            for (String topic : endOffsetMap.keySet()) {
+                Map<TopicPartition, OffsetAndMetadata> topicPartitionsOffset = new HashMap<>();
+                Map<String, String> partitionMap = endOffsetMap.get(topic);
+                for (String partition : partitionMap.keySet()) {
+                    TopicPartition topicPartition = new TopicPartition(topic, Integer.parseInt(partition));
+                    OffsetAndMetadata offsetAndMetadata = new OffsetAndMetadata(Long.parseLong(String.valueOf(partitionMap.get(partition))));
+                    topicPartitionsOffset.put(topicPartition, offsetAndMetadata);
+                }
+                logger.info("【commitSync offset】topicPartitionsOffset={}", topicPartitionsOffset);
+                kafkaConsumer.commitSync(topicPartitionsOffset);
+            }
+        }
+    }
+
+    @Override
+    public void onQueryTerminated(QueryTerminatedEvent event) {
+        logger.info("Stream exited due to exception : {}, id : {}, runId: {}", event.exception().toString(), event.id(), event.runId());
+    }
+
+}
 ```
 
 然后在Spark调用下面监控即可
