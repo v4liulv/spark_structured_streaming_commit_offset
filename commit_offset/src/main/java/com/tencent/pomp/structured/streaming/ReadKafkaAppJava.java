@@ -29,7 +29,7 @@ public class ReadKafkaAppJava {
         final SparkSession spark = SparkSession.builder().master("local[2]").appName(ReadKafkaAppJava.class.getSimpleName()).getOrCreate();
 
         //spark.udf().register("cleanData", new CleanDataFunction());
-        spark.streams().addListener(new CustomStreamingQueryListenerJava(kafkaBrokers, kafkaGroup));
+        spark.streams().addListener(new KafkaOffsetCommitterJava(kafkaBrokers, kafkaGroup));
         Dataset<Row> lines = spark
                 .readStream()
                 .format("kafka")

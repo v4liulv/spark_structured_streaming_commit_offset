@@ -30,7 +30,7 @@
     </developers>
 
     <modules>
-        <module>pomp_consume</module>
+        <module>commit_offset</module>
     </modules>
 
     <properties>

@@ -18,19 +18,19 @@ import java.util.Properties;
  * @author liulv
  * @since 1.0.0
  */
-public class CustomStreamingQueryListenerJava extends StreamingQueryListener {
+public class KafkaOffsetCommitterJava extends StreamingQueryListener {
 
     /**
      * logger.
      */
-    private static final Logger logger = LoggerFactory.getLogger(CustomStreamingQueryListenerJava.class);
+    private static final Logger logger = LoggerFactory.getLogger(KafkaOffsetCommitterJava.class);
 
     /**
      * 初始化KafkaConsumer.
      */
     private static KafkaConsumer kafkaConsumer = null;
 
-    public CustomStreamingQueryListenerJava(String brokers, String group){
+    public KafkaOffsetCommitterJava(String brokers, String group){
         Properties properties= new Properties();
         {
             properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
